@@ -1,0 +1,486 @@
+Интерактивный тренажер по SQL
+
+1.1 Отношение (таблица)
+create table book(
+    book_id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(50),
+    author VARCHAR(30),
+    price DECIMAL(8, 2),
+    amount INT
+    );
+
+insert into book (title, author, price, amount)
+values ("Мастер и Маргарита", "Булгаков М.А.", 670.99, 3);
+
+insert into book (title, author, price, amount)
+values ("Белая гвардия", "Булгаков М.А.", 540.50, 5);
+insert into book (title, author, price, amount)
+values ("Идиот", "Достоевский Ф.М.", 460.00, 10);
+insert into book (title, author, price, amount)
+values ("Братья Карамазовы", "Достоевский Ф.М.", 799.01, 2);
+
+1.2 Выборка данных
+SELECT * FROM book;
+
+select author, title, price from book;
+
+select title as Название, author as Автор from book;
+
+select title, amount, amount *1.65 as pack from book;
+
+select title, author, amount, round((price - price * 0.3), 2) as new_price from book;
+
+select author, title, 
+round (if (author = "Булгаков М.А.", price * 1.1, if (author = "Есенин С.А.", price * 1.05, price)),2)
+as new_price
+from book;
+
+select author, title, price from book
+where amount < 10;
+
+select title, author, price, amount from book
+where (price < 500 or price > 600) and price * amount >= 5000;
+
+select title, author from book
+where (price between 540.50 and 800) and
+amount in (2,3,5,7);
+
+select author, title from book
+where amount between 2 and 14
+order by author desc, title;
+
+select title, author from book
+where title like "_% %" and author like "%С.%"
+order by title;
+
+select title, price from book
+where title like "% % %" and price < 700 and amount like "_"
+order by title;
+
+1.3 Запросы, групповые операции
+select distinct amount from book;
+
+select author as Автор, count(title) as "Различных_книг", sum(amount) as "Количество_экземпляров"
+from book 
+group by author;
+
+select author, min(price) as Минимальная_цена, max(price) as Максимальная_цена, avg(price) as Средняя_цена
+from book 
+group by author;
+
+select author, 
+sum(price * amount) as Стоимость,
+round((sum(price * amount)* 18/100)/(1+18/100),2) as НДС,
+round((sum(price * amount))/(1+18/100),2) as "Стоимость_без_НДС"
+from book
+group by author;
+
+select min(price) as Минимальная_цена, max(price) as Максимальная_цена, round(avg(distinct price), 2) as Средняя_цена 
+from book;
+
+select round(avg(price),2) as Средняя_цена, sum(price*amount) as Стоимость
+from book
+where amount between 5 and 14;
+
+select author, sum(price*amount) as Стоимость
+from book
+where title <> "Идиот" and title <> "Белая гвардия"
+group by author
+having sum(price*amount) > 5000
+order by sum(price*amount) desc;
+
+select author, min(price*amount)
+from book
+where author <> "Достоевский Ф.М."
+group by author;
+
+1.4 Вложенные запросы
+select author, title, price 
+from book
+where price <= (select avg(price) 
+         FROM book)
+order by price desc;
+
+select author, title, price 
+from book
+where price - (select min(price) 
+         from book) <= 150
+order by price asc;
+
+select author, title, amount 
+from book
+where amount in 
+(select amount 
+        from book 
+        group by amount 
+        having count(amount) = 1
+      );
+
+select author, title, price 
+from book
+where price < Any (select min(price)
+         from book 
+        group by author);
+
+select title, author, amount, abs(amount - 
+    (
+     select max(amount)
+     from book
+    )) as Заказ
+from book
+where abs(amount - 
+    (
+     select max(amount)
+     from book
+    )) <> 0;
+
+select title, author, amount
+from book
+where amount >= any (
+     select max(amount)
+     from book
+    group by author);
+
+1.5 Запросы корректировки данных
+create table supply(
+    supply_id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(50),
+    author VARCHAR(30),
+    price DECIMAL(8, 2),
+    amount INT
+    );
+
+insert into supply (title, author, price, amount)
+values ("Лирика", "Пастернак Б.Л.", 518.99, 2),
+("Черный человек", "Есенин С.А.", 570.20, 6),
+("Белая гвардия", "Булгаков М.А.", 540.50, 7),
+("Идиот", "Достоевский Ф.М.", 360.80, 3);
+
+INSERT INTO book (title, author, price, amount) 
+SELECT title, author, price, amount 
+FROM supply
+where author <> "Достоевский Ф.М." and author <> "Булгаков М.А."
+
+INSERT INTO book (title, author, price, amount) 
+SELECT title, author, price, amount 
+FROM supply
+WHERE author NOT IN (
+        SELECT author
+        FROM book
+      );
+
+UPDATE book 
+SET price = 0.9 * price 
+WHERE amount between 5 and 10;
+
+UPDATE book 
+SET buy = if(buy > amount, amount, buy),
+price = if(buy = "0", price * 0.9, price);
+
+UPDATE book, supply 
+SET book.amount = book.amount + supply.amount,
+book.price = (book.price+supply.price)/2
+WHERE book.title = supply.title AND book.author = supply.author;
+
+DELETE FROM supply 
+      WHERE author IN (
+        SELECT author 
+        FROM book 
+        GROUP BY author 
+        HAVING SUM(amount) > 10
+      );
+
+CREATE TABLE ordering AS
+SELECT author, title, 
+   (
+    SELECT ROUND(AVG(amount)) 
+    FROM book
+   ) AS amount
+FROM book
+WHERE amount < (select avg(amount) from book);
+
+Update supply set amount = 10;
+
+1.6 Таблица "Командировки", запросы на выборку
+select name, city, per_diem, date_first, date_last
+from trip
+where name like "%а %"
+order by date_last desc;
+
+select distinct name
+from trip 
+where city = "Москва"
+order by name;
+
+select city, count(city) as "Количество"
+from trip
+group by city
+order by city;
+
+select city, count(city) as "Количество"
+from trip
+group by city
+order by count(city) desc
+limit 2;
+
+select name, city, (datediff(date_last,date_first)+1) as "Длительность"
+from trip
+where city <> "Москва" and city <> "Санкт-Петербург"
+order by Длительность desc, city desc;
+
+select name, city, date_first, date_last
+from trip
+where datediff(date_last,date_first) = 
+(select min(datediff(date_last,date_first))
+ from trip);
+
+select name, city, date_first, date_last
+from trip
+where month(date_last) = month(date_first)
+order by city, name;
+
+select monthname(date_first) as "Месяц", count(monthname(date_first)) as "Количество"
+from trip
+group by monthname(date_first)
+order by Количество desc, Месяц;
+
+select name, city, date_first, ((datediff(date_last,date_first)+1)*per_diem) as Сумма
+from trip
+where (month(date_first) = 3 or month(date_first) = 2) and year(date_first) = 2020
+order by name, Сумма desc;
+
+select name, sum(((datediff(date_last,date_first)+1)*per_diem)) as Сумма
+from trip
+group by name
+having (select count(name)) > 3
+order by Сумма desc;
+
+1.7 Таблица "Нарушения ПДД", запросы корректировки
+create table fine(
+    fine_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(30),
+    number_plate VARCHAR(6),
+    violation VARCHAR(50),
+    sum_fine DECIMAL(8, 2),
+    date_violation DATE,
+    date_payment DATE
+    );
+
+insert into fine(name,number_plate,violation,sum_fine,date_violation,date_payment)
+values ("Баранов П.Е.","Р523ВТ","Превышение скорости(от 40 до 60)", null, "2020-02-14", null),
+("Абрамова К.А.","О111АВ","Проезд на запрещающий сигнал", null, "2020-02-23", null),
+("Яковлев Г.Р.","Т330ТТ","Проезд на запрещающий сигнал", null, "2020-03-03", null);
+
+update fine, traffic_violation
+set fine.sum_fine = traffic_violation.sum_fine
+where fine.sum_fine is null and fine.violation = traffic_violation.violation;
+
+select name, number_plate, violation
+from fine
+GROUP BY name, number_plate, violation
+having count(*) >=2
+order by name, number_plate, violation;
+
+update fine,
+(select name, number_plate, violation
+from fine
+GROUP BY name, number_plate, violation
+having count(*) >=2) query_in
+set sum_fine = sum_fine*2
+where date_payment is null and fine.name = query_in.name;
+
+update fine, payment
+set fine.date_payment = payment.date_payment,
+fine.sum_fine =
+if(datediff(payment.date_payment,payment.date_violation)<=20,fine.sum_fine/2,fine.sum_fine)
+where fine.date_payment is null and fine.name = payment.name and payment.number_plate = fine.number_plate and payment.violation = fine.violation and payment.date_violation = fine.date_violation;
+
+create table back_payment as
+select name,number_plate,violation, sum_fine, date_violation
+from fine
+where date_payment  is null;
+
+delete from fine
+where datediff(date_violation,"2020-02-01")<0;
+
+2.1 Связи между таблицами
+create table author(
+    author_id INT PRIMARY KEY AUTO_INCREMENT,
+    name_author VARCHAR(50)
+    );
+
+insert into author (name_author)
+values ("Булгаков М.А."),
+("Достоевский Ф.М."),
+("Есенин С.А."),
+("Пастернак Б.Л.");
+
+CREATE TABLE book (
+    book_id INT PRIMARY KEY AUTO_INCREMENT, 
+    title VARCHAR(50), 
+    author_id INT NOT NULL, 
+    genre_id INT,
+    price DECIMAL(8,2), 
+    amount INT, 
+    FOREIGN KEY (author_id)  REFERENCES author (author_id),
+    FOREIGN KEY (genre_id)  REFERENCES genre (genre_id)
+);
+
+CREATE TABLE book (
+    book_id INT PRIMARY KEY AUTO_INCREMENT, 
+    title VARCHAR(50), 
+    author_id INT NOT NULL, 
+    genre_id INT,
+    price DECIMAL(8,2), 
+    amount INT, 
+    FOREIGN KEY (author_id)  REFERENCES author (author_id) ON DELETE CASCADE,
+    FOREIGN KEY (genre_id)  REFERENCES genre (genre_id) ON DELETE SET NULL
+);
+
+insert into book (title,author_id,genre_id,price,amount)
+values ("Стихотворения и поэмы",3,2,650.00,15),
+("Черный человек",3,2,570.20,6),
+("Лирика",4,2,518.99,2);
+
+2.2 Запросы на выборку, соединение таблиц
+select title, name_genre, price
+from book inner join genre
+on book.genre_id = genre.genre_id
+where amount >8
+order by price desc;
+
+select name_genre
+FROM genre LEFT JOIN book
+     ON genre.genre_id = book.genre_id
+where book.genre_id is null;
+
+select name_city, name_author, date_add("2020-01-01", interval floor(rand(0.1)*365) day) as Дата
+from author cross join city
+order by name_city, Дата desc;
+
+select name_genre,title, name_author
+from
+    author 
+    inner join  book on author.author_id = book.author_id
+    inner join genre on genre.genre_id = book.genre_id
+where name_genre like "роман"
+order by title;
+
+select name_author, sum(amount) as Количество
+from 
+    author left join book
+    on author.author_id = book.author_id
+group by name_author 
+having sum(amount) < 10 or sum(amount) is NULL
+order by Количество;
+
+select name_author
+from  
+    author inner join book
+    on author.author_id = book.author_id
+group by name_author
+having count(distinct genre_id) =1;
+
+select title, name_author, name_genre, price, amount
+from author 
+    inner join book on author.author_id = book.author_id
+    inner join genre on book.genre_id = genre.genre_id
+where genre.genre_id in
+(select q1.genre_id
+          from
+(select genre_id, sum(amount) as sum_amount from book
+group by genre_id) q1
+inner join
+(select genre_id, sum(amount) as sum_amount from book
+group by genre_id order by sum(amount) desc limit 1) q2
+on q1.sum_amount = q2.sum_amount)
+order by title;
+
+select book.title as Название, name_author as Автор, (book.amount+supply.amount) as Количество
+from 
+author inner join book using (author_id)   
+inner join supply on book.title = supply.title and author.name_author = supply.author and book.price = supply.price;
+
+select title
+from book inner join author using(author_id)
+where name_author like "Е%";
+
+2.3 Запросы корректировки, соединение таблиц
+update book 
+     inner join author on author.author_id = book.author_id
+     inner join supply on book.title = supply.title 
+                         and supply.author = author.name_author
+set book.price = ((book.amount*book.price) + (supply.amount*supply.price))/(book.amount+supply.amount),
+    book.amount = book.amount + supply.amount,
+    supply.amount = 0   
+where book.price <> supply.price;
+
+insert into author (name_author)
+select supply.author
+from author right join supply on author.name_author = supply.author
+where name_author is Null;
+
+insert into book (title, author_id, price, amount)
+select title, author_id, price, amount
+from author inner join supply on author.name_author = supply.author
+where amount <> 0;
+
+update book
+set genre_id = 
+      (
+       select genre_id 
+       from genre 
+       where name_genre = "Поэзия"
+      )
+where book_id = 10;
+update book
+set genre_id = 
+      (
+       select genre_id 
+       from genre 
+       where name_genre = "Приключения"
+      )
+where book_id = 11;
+
+delete from author
+where author_id in (select author_id
+from book
+group by author_id
+having sum(amount) < 20);
+
+delete from genre
+where genre_id in (select genre_id
+from book
+group by genre_id
+having count(title) < 4);
+
+delete from author
+using author inner join book on author.author_id = book.author_id
+inner join genre on genre.genre_id = book.genre_id
+where name_genre like "Поэзия";
+
+delete from genre
+using genre inner join book on genre.genre_id = book.genre_id
+where price < 799.00;
+
+2.4 База данных «Интернет-магазин книг», запросы на выборку
+select buy.buy_id, title, book.price, buy_book.amount
+from 
+    client 
+    inner join buy on client.client_id = buy.client_id
+    inner join buy_book on buy_book.buy_id = buy.buy_id
+    inner join book on buy_book.book_id=book.book_id
+where name_client ="Баранов Павел" 
+order by buy.buy_id, title;
+
+
+
+
+
+
+
+
+
+
+
+​
